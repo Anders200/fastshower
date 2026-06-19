@@ -1,0 +1,60 @@
+# fastshower/.gitignore
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.so
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+
+# ---- Data — large, regenerable, never commit ----
+simulation/data/raw/
+simulation/data/processed/
+data/
+*.npz
+*.npy
+*.h5
+*.hdf5
+*.root
+
+# ---- PINN checkpoints / training artifacts ----
+pinn/checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# ---- Requests (active learning queue) ----
+data/requests/
+
+# ---- SLURM logs ----
+slurm/logs/
+*.out
+*.err
+
+# ---- Geant4 build artifacts ----
+simulation/geant4/build/
+simulation/geant4/CMakeCache.txt
+simulation/geant4/CMakeFiles/
+*.o
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- OS / editor junk ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# ---- Environment / secrets ----
+.env
