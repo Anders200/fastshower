@@ -1,0 +1,61 @@
+pinn architecture:
+
+input dim 3 (r, z, E0) - > dE/dV (tak jak w heatmap notebooku od szumlaka tylko tam było (x,t) -> dE/dV)
+loss: proponuję na początku sam data loss + energy conservation całka po dE/dV = E0, dE/dV > 0 zawsze
+
+jak będzie jakoś działać to można dodać advection - diffusion w geometrii cylindrycznej
+
+
+get_training_points() - ładujesz cały dataset
+
+i tak na prawde tyle z api, query_pinn da nam caly solution, dodam takie coś z g4 i będzie można porównać
+
+jak nam szybko pójdzie to można potem sie bawić w zmiane wymiarów detektora, materiu itp itd.
+
+
+
+
+tu masz zapytanie o loss pde bo ja tego trochę nie rozumiem gdzie które dane trzba wrzucić:
+
+Dobre pytanie, bo do tej pory α(z) i D były tylko nazwami — trzeba je teraz skonkretyzować, żeby PDE faktycznie coś znaczyło, a nie był tylko ozdobnikiem w loss-ie.
+α(z) — człon zaniku wzdłużnego
+To ma reprezentować tempo, w jakim energia znika z lokalnego "budżetu" wzdłuż głębokości — pochodzi z Bethe-Bloch / radiation loss, ale tutaj wchodzi jako względna szybkość zaniku (bo mnoży u, nie jest niezależnym źródłem):
+α(z)=1⟨u(z)⟩⋅S(E(z))\alpha(z) = \frac{1}{\langle u(z) \rangle} \cdot S(E(z))α(z)=⟨u(z)⟩1​⋅S(E(z))
+W praktyce, dla EM shower w jednostkach X0, klasyczna teoria kaskad (Rossi) daje analityczny, sparametryzowany kształt profilu podłużnego — funkcję gamma:
+dEdz∝za−1e−bz\frac{dE}{dz} \propto z^{a-1} e^{-bz}dzdE​∝za−1e−bz
+gdzie a, b są sparametryzowane przez E0 i materiał (jest na to znany wzór, np. z PDG Review of Particle Physics, rozdział o pasażu cząstek przez materię). To jest najprostszy konkretny wybór α(z) — wyprowadzony z pochodnej logarytmicznej tej funkcji gamma:
+α(z)=−ddzln⁡[za−1e−bz]=b−a−1z\alpha(z) = -\frac{d}{dz}\ln\left[z^{a-1}e^{-bz}\right] = b - \frac{a-1}{z}α(z)=−dzd​ln[za−1e−bz]=b−za−1​
+D — współczynnik dyfuzji poprzecznej
+To ma reprezentować rozmycie radialne od multiple Coulomb scattering. Naturalna skala długości to promień Molière'a R_M (znana wielkość materiałowa, podawana w PDG dla każdego materiału):
+D∼RM2X0D \sim \frac{R_M^2}{X_0}D∼X0​RM2​​
+(jednostka: cm²/X0, żeby pasowało do z mierzonego w X0). R_M dla waszego materiału to konkretna, znana liczba — nie trzeba jej zgadywać, jest w tablicach PDG/NIST.
+Czy D powinno zależeć od z?
+Realistycznie tak — rozmycie poprzeczne rośnie z głębokością (shower się "rozszerza" w miarę propagacji), więc D = D(z) byłoby fizycznie dokładniejsze niż stała. Ale na start, zostawcie D jako stałą — to jest świadome uproszczenie, nie błąd, i pasuje do tego co ustaliliście wcześniej (zaczynać prosto, dokładać złożoność stopniowo).
+Konkretnie do kodu
+python# pinn/physics_constants.py — DOPISAĆ do tego co już macie
+
+R_MOLIERE = ...   # cm, z tablic PDG dla waszego materiału
+X0 = ...          # już macie
+
+# Parametry kaskady (Rossi), zależą od E0 i materiału — E_crit z tablic PDG
+E_CRIT = ...      # MeV, critical energy materiału
+
+def shower_shape_params(E0):
+    """
+    a, b parametry funkcji gamma profilu podłużnego (Rossi/PDG).
+    """
+    y = E0 / E_CRIT
+    a = 0.5 * np.log(y) + C  # C zależy od typu cząstki (e- vs gamma), z PDG
+    b = ...  # zwykle b ~ 0.5, sprawdzić dokładną wartość w PDG
+    return a, b
+python# pinn/physics_loss.py
+
+def alpha_of_z(z, E0):
+    a, b = shower_shape_params(E0)
+    return b - (a - 1) / (z + 1e-3)  # +eps, unikamy 1/0 przy z->0
+
+def diffusion_coefficient():
+    return (R_MOLIERE ** 2) / X0   # stała na razie, nie zależy od z
+Ważne zastrzeżenie
+To jest konkretna propozycja, nie jedyna słuszna — i mówię to wprost, bo jest ryzyko, że α(z)/D wyliczone "na sztywno" z teorii Rossiego będzie się rozjeżdżać z tym, co faktycznie pokazują wasze dane G4 (przybliżenie Rossiego ma swoje granice ważności, szczególnie blisko z=0 i w ogonach). Dlatego radzę: traktujcie te wzory jako punkt startowy do regularyzacji, nie jako twardą prawdę — i obserwujcie, czy loss_pde w ogóle maleje razem z loss_data, czy zaczyna z nim konkurować. Jeśli się rozjeżdżają, to sygnał że parametryzacja α(z)/D jest zbyt sztywna względem tego co G4 faktycznie pokazuje, i albo trzeba je dopasować (uczyć jako dodatkowe parametry, podobnie jak alpha w przykładzie InverseHeatPINN które wysłałeś wcześniej), albo zmniejszyć wagę PDE loss.
+Notabene — to nawiązuje do wzorca z waszego przykładu InverseHeatPINN: tam alpha był uczonym parametrem (nn.Parameter), nie ustaloną stałą. Możecie zrobić to samo z a, b w α(z) — zacząć od wartości teoretycznych jako inicjalizacji, ale pozwolić sieci je doszlifować podczas treningu, zamiast trzymać je sztywno.
