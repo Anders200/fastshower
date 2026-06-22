@@ -63,14 +63,27 @@ def train():
         optimizer.zero_grad()
 
         # ---- A. LOSS Z DANYCH ----
-        r_data.requires_grad_(True)
-        z_data.requires_grad_(True)
-        
         pred_dedv = model(r_data, z_data, E0_data)
         loss_data = torch.mean((pred_dedv - dedv_data) ** 2)
 
         # ---- B. LOSS Z PDE ----
-        pde_res = physics_evaluator.compute_pde_residual(model, r_data, z_data, E0_data)
+        # PDE residual is evaluated on COLLOCATION POINTS sampled across the
+        # domain -- NOT on the G4 data points. This is the whole point of a
+        # PINN: enforce physics between the data points, not only where we
+        # already have ground truth. Gaussian-biased sampling concentrates
+        # points near the shower core where gradients are steepest.
+        n_coll = 2000
+        r_coll_np = np.abs(np.random.normal(0, config.R_MAX * 0.15, n_coll))
+        r_coll_np = np.clip(r_coll_np, 0, config.R_MAX)
+        z_coll_np = np.random.normal(config.Z_MAX * 0.4, config.Z_MAX * 0.25, n_coll)
+        z_coll_np = np.clip(z_coll_np, 1e-3, config.Z_MAX)
+        E0_coll_np = np.random.uniform(config.E0_MIN, config.E0_MAX, n_coll)
+
+        r_coll = torch.tensor(r_coll_np, dtype=torch.float32, device=device).view(-1, 1).requires_grad_(True)
+        z_coll = torch.tensor(z_coll_np, dtype=torch.float32, device=device).view(-1, 1).requires_grad_(True)
+        E0_coll = torch.tensor(E0_coll_np, dtype=torch.float32, device=device).view(-1, 1)
+
+        pde_res = physics_evaluator.compute_pde_residual(model, r_coll, z_coll, E0_coll)
         loss_pde = torch.mean(pde_res ** 2)
 
         # ---- C. LOSS Z ZACHOWANIA ENERGII ----
@@ -103,7 +116,7 @@ def train():
         history["epoch"].append(epoch)
         history["loss_total"].append(total_loss.item())
         history["loss_data"].append(loss_data.item())
-        history["history_pde" if "history_pde" in history else "loss_pde"].append(loss_pde.item())
+        history["loss_pde"].append(loss_pde.item())
         history["loss_energy"].append(loss_energy.item())
         history["param_a"].append(physics_evaluator.param_a.item())
         history["param_b"].append(physics_evaluator.param_b.item())

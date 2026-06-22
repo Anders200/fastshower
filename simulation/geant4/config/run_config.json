@@ -1,0 +1,35 @@
+{
+  "_comment": "Single source of truth for G4 runs. Aligned with interface/config.py: R_MAX=5.0 cm, Z_MAX=25.0 X0, E0 in [10,200] MeV.",
+
+  "particle": "e-",
+  "material": "G4_PbWO4",
+
+  "geometry": {
+    "radius_cm": 5.0,
+    "depth_cm": 22.25,
+    "_depth_note": "22.25 cm = 25 X0 exactly (X0=0.89 cm) -- matches interface/config.py Z_MAX=25.0",
+    "X0_cm": 0.89,
+    "_X0_note": "Radiation length of PbWO4 (PDG). Used by convert_to_npz.py to convert z: cm -> X0 units before writing to disk, matching interface/io.py contract."
+  },
+
+  "binning": {
+    "n_r": 60,
+    "n_z": 120,
+    "_comment": "Non-uniform bins (sqrt-spaced in r, denser near shower max in z) -- see RunData.cc"
+  },
+
+  "beam": {
+    "x0_cm": 0.0,
+    "y0_cm": 0.0,
+    "z_start_cm": -1.0,
+    "direction": [0.0, 0.0, 1.0]
+  },
+
+  "energies_MeV": [10, 20, 30, 50, 75, 100, 125, 150, 175, 200],
+  "_energies_note": "Bounded to interface/config.py E0_MIN=10, E0_MAX=200. Keep in sync -- if you widen E0 range in config.py, add matching energies here.",
+
+  "n_events_per_energy": 10000,
+
+  "random_seed_base": 1000,
+  "_seed_note": "seed per task = random_seed_base + SLURM_ARRAY_TASK_ID"
+}
