@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH --account=plgmsc26-cpu
 #SBATCH --job-name=fastshower_g4
-#SBATCH --output=logs/g4_%A_%a.out
-#SBATCH --error=logs/g4_%A_%a.err
+#SBATCH --output=logs/g4_%j.out
+#SBATCH --error=logs/g4_%j.err
 #SBATCH --partition=plgrid-now
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --time=00:30:00
+#SBATCH --time=00:10:00
 
-# SLURM_ARRAY_TASK_ID is passed as the first argument to this script!!!!
+# This script runs the full energy sweep serially inside one batch job.
 
 set -euo pipefail
 
@@ -35,24 +35,28 @@ module load python/3.13.5-gcccore-14.3.0
 # ---- venv ----
 source "${REPO_ROOT}/venv/bin/activate"
 
-# ---- Get energy from config ----
-SLURM_ARRAY_TASK_ID=$1
-ENERGY=$(python3 - <<EOF
+# ---- Get energies from config ----
+mapfile -t ENERGIES < <(python3 - <<EOF
 import json
 with open("${CONFIG}") as f:
     cfg = json.load(f)
-print(cfg["energies_MeV"][int(${SLURM_ARRAY_TASK_ID})])
+for energy in cfg["energies_MeV"]:
+    print(energy)
 EOF
 )
 
-echo "[g4_batch] task ${SLURM_ARRAY_TASK_ID} -> E0=${ENERGY} MeV"
+echo "[g4_batch] running ${#ENERGIES[@]} energies serially"
 
-# ---- Run simulation ----
-python3 "${REPO_ROOT}/simulation/scripts/run_batch.py" \
-    --energy "${ENERGY}" \
-    --config  "${CONFIG}" \
-    --binary  "${BINARY}" \
-    --rawdir  "${RAWDIR}" \
-    --outdir  "${OUTDIR}"
+for index in "${!ENERGIES[@]}"; do
+    ENERGY="${ENERGIES[$index]}"
+    echo "[g4_batch] run $((index + 1))/${#ENERGIES[@]} -> E0=${ENERGY} MeV"
+
+    python3 "${REPO_ROOT}/simulation/scripts/run_batch.py" \
+        --energy "${ENERGY}" \
+        --config  "${CONFIG}" \
+        --binary  "${BINARY}" \
+        --rawdir  "${RAWDIR}" \
+        --outdir  "${OUTDIR}"
+done
 
 echo "[g4_batch] done"
