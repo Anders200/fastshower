@@ -104,7 +104,7 @@ def plot_heatmap(r_values: np.ndarray, z_values: np.ndarray, values: np.ndarray,
         origin="lower",
         extent=[z_values.min(), z_values.max(), r_values.min(), r_values.max()],
         aspect="auto",
-        cmap="virdis",
+        cmap="viridis",
         norm=LogNorm(vmin=positive_values.min(), vmax=positive_values.max()),
     )
 
