@@ -15,7 +15,7 @@ def train():
     print(f"Uruchamianie treningu na: {device}")
 
     # 1. Inicjalizacja modeli
-    model = EnergyDepositionPINN(hidden_dim=128, depth=4).to(device)
+    model = EnergyDepositionPINN(hidden_dim=64, depth=4).to(device)
     physics_evaluator = PhysicsLossEvaluator().to(device)
     
     # Podpięcie PINNa pod interfejs surogatu G4
@@ -132,8 +132,10 @@ def train():
                 f"a: {physics_evaluator.param_a.item():.3f} b: {physics_evaluator.param_b.item():.3f}"
             )
 
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
     # Zapisz wytrenowany model
-    torch.save(model.state_dict(), "pinn_detector_model.pt")
+    torch.save(model.state_dict(), output_dir / "pinn_detector_model.pt")
     print("Trening zakończony! Model zapisano.")
 
     # --- GENEROWANIE WYKRESÓW (Dokładnie tak jak w przesłanym notatniku) ---
@@ -169,7 +171,7 @@ def train():
     plt.tight_layout()
     
     # Zapisujemy wykres do pliku graficznego, ponieważ uruchamiamy to jako skrypt .py
-    plt.savefig("pinn_training_history.png", dpi=300)
+    plt.savefig(output_dir / "pinn_training_history.png", dpi=300)
     print("Wykresy zostały zapisane do pliku: pinn_training_history.png")
     plt.show()
 
