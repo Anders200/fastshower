@@ -8,7 +8,8 @@ RunData::RunData(G4double radiusCm, G4double depthCm, G4int nR, G4int nZ)
     // r: sqrt-spaced -> denser near r=0 (shower core)
     fREdges.resize(fNR + 1);
     for (G4int i = 0; i <= fNR; ++i)
-        fREdges[i] = fRadius * std::sqrt(static_cast<G4double>(i) / fNR);
+        // fREdges[i] = fRadius * std::sqrt(static_cast<G4double>(i) / fNR);
+        fREdges[i] = fRadius * (static_cast<G4double>(i) / fNR);
 
     // z: denser in first 40% of depth (shower max region), coarser after
     fZEdges.resize(fNZ + 1);
