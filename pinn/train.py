@@ -1,18 +1,20 @@
 # pinn/train.py
+import argparse
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
 
 from interface.g4_surrogate import G4Surrogate
 from interface import config
 from pinn.model import EnergyDepositionPINN
 from pinn.physics import PhysicsLossEvaluator
+from pinn.plotting import plot_loss_components, plot_params
 
-def train():
+def train(data_dir: Path, output_dir: Path):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Uruchamianie treningu na: {device}")
+    print(f"Starting training on: {device}")
 
     # 1. Inicjalizacja modeli
     model = EnergyDepositionPINN(hidden_dim=64, depth=4).to(device)
@@ -21,11 +23,11 @@ def train():
     # Podpięcie PINNa pod interfejs surogatu G4
     surrogate = G4Surrogate(model=model)
     
-    # 2. Ładowanie danych treningowych z Geant4 (Data Loss)
-    data_dir = Path("data")
+    # 2. Load training data from Geant4 (Data Loss)
+    data_dir = Path(data_dir)
     if not data_dir.exists():
-        raise FileNotFoundError("Utwórz katalog 'data' i umieść w nim pliki .npz z symulacji!")
-        
+        raise FileNotFoundError("Create the 'data' directory and place .npz simulation files there.")
+
     g4_data = surrogate.get_training_points(data_dir)
     
     # Konwersja danych Geant4 na tensory PyTorch
@@ -56,7 +58,7 @@ def train():
         "param_b": []
     }
 
-    print("Rozpoczęcie asymilacji danych z regularyzacją fizyczną...")
+    print("Starting training with physics regularization...")
     
     for epoch in range(1, epochs + 1):
         model.train()
@@ -121,10 +123,10 @@ def train():
         history["param_a"].append(physics_evaluator.param_a.item())
         history["param_b"].append(physics_evaluator.param_b.item())
 
-        # Logowanie postępów w konsoli
+        # Logging progress to console
         if epoch % 200 == 0 or epoch == 1:
             print(
-                f"Epoka {epoch:4d}/{epochs} | "
+                f"Epoch {epoch:4d}/{epochs} | "
                 f"Loss: {total_loss.item():.4e} | "
                 f"Data MSE: {loss_data.item():.4e} | "
                 f"PDE Res: {loss_pde.item():.4e} | "
@@ -132,48 +134,26 @@ def train():
                 f"a: {physics_evaluator.param_a.item():.3f} b: {physics_evaluator.param_b.item():.3f}"
             )
 
-    output_dir = Path("output")
+    output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True)
-    # Zapisz wytrenowany model
+
+    # Save trained model
     torch.save(model.state_dict(), output_dir / "pinn_detector_model.pt")
-    print("Trening zakończony! Model zapisano.")
+    print("Training finished. Model saved.")
 
-    # --- GENEROWANIE WYKRESÓW (Dokładnie tak jak w przesłanym notatniku) ---
-    print("Generowanie wykresów diagnostycznych...")
-    
-    plt.figure(figsize=(14, 5))
+    # --- Generate diagnostic plots ---
+    print("Generating diagnostic plots...")
+    plot_loss_components(history, output_dir)
+    plot_params(history, output_dir)
 
-    # Wykres 1: Historia Funkcji Strat (w skali logarytmicznej)
-    plt.subplot(1, 2, 1)
-    plt.plot(history["epoch"], history["loss_total"], label="Total Loss", color="black", alpha=0.7)
-    plt.plot(history["epoch"], history["loss_data"], label="Data Loss (G4 MSE)", color="blue", linestyle="--")
-    plt.plot(history["epoch"], history["loss_pde"], label="Physics Loss (PDE)", color="red", linestyle=":")
-    plt.plot(history["epoch"], history["loss_energy"], label="Energy Conservation Loss", color="green", linestyle="-.")
-    plt.yscale("log")
-    plt.xlabel("Epoka")
-    plt.ylabel("Wartość Loss")
-    plt.title("Historia zbieżności funkcji strat (Inverse PINN)")
-    plt.grid(True, which="both", linestyle="--", alpha=0.5)
-    plt.legend()
+def _build_argparser():
+    p = argparse.ArgumentParser(description="Train the PINN model")
+    p.add_argument("--data-dir", type=Path, default=Path("data"), help="Directory with .npz training runs")
+    p.add_argument("--output-dir", type=Path, default=Path("output"), help="Directory to write models and plots")
+    return p
 
-    # Wykres 2: Ewolucja uczonych parametrów fizycznych kaskady (a, b)
-    plt.subplot(1, 2, 2)
-    plt.plot(history["epoch"], history["param_a"], label="Wyestymowane 'a'", color="purple")
-    plt.plot(history["epoch"], history["param_b"], label="Wyestymowane 'b'", color="orange")
-    # Linia odniesienia dla teoretycznego b ~ 0.5
-    plt.axhline(y=0.5, color="gray", linestyle="--", label="Teoretyczne b (Rossi)")
-    plt.xlabel("Epoka")
-    plt.ylabel("Wartość parametru")
-    plt.title("Ewolucja parametrów kaskady Rossiego w czasie")
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.legend()
-
-    plt.tight_layout()
-    
-    # Zapisujemy wykres do pliku graficznego, ponieważ uruchamiamy to jako skrypt .py
-    plt.savefig(output_dir / "pinn_training_history.png", dpi=300)
-    print("Wykresy zostały zapisane do pliku: pinn_training_history.png")
-    plt.show()
 
 if __name__ == "__main__":
-    train()
+    parser = _build_argparser()
+    args = parser.parse_args()
+    train(args.data_dir, args.output_dir)

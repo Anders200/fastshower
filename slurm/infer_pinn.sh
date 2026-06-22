@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=plgmsc26-gpu
-#SBATCH --job-name=fastshower_pinn_train
-#SBATCH --output=logs/train_%j.out
-#SBATCH --error=logs/train_%j.err
+#SBATCH --job-name=fastshower_pinn_infer
+#SBATCH --output=logs/infer_%j.out
+#SBATCH --error=logs/infer_%j.err
 #SBATCH --partition=plgrid-gpu-v100
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -26,6 +26,6 @@ echo "[pinn] training on data from ${DATA_DIR}"
 echo "[pinn] GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'unknown')"
 echo "[pinn] Python: $(python3 -V)"
 
-python3 -m pinn.train --data-dir "${DATA_DIR}"  --output-dir "${REPO_ROOT}/output"
+python3 -m pinn.infer.py --data-dir "${DATA_DIR}" 
 
 echo "[pinn] done"
