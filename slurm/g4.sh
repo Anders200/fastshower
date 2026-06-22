@@ -10,6 +10,8 @@
 #SBATCH --mem=4G
 #SBATCH --time=00:30:00
 
+# SLURM_ARRAY_TASK_ID is passed as the first argument to this script!!!!
+
 set -euo pipefail
 
 # ---- Repo root (robust for SLURM batch jobs) ----
@@ -34,6 +36,7 @@ module load python/3.13.5-gcccore-14.3.0
 source "${REPO_ROOT}/venv/bin/activate"
 
 # ---- Get energy from config ----
+SLURM_ARRAY_TASK_ID=$1
 ENERGY=$(python3 - <<EOF
 import json
 with open("${CONFIG}") as f:
