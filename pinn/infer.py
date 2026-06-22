@@ -100,16 +100,16 @@ def plot_heatmap(r_values: np.ndarray, z_values: np.ndarray, values: np.ndarray,
 
     positive_values = np.clip(values, 1e-8, None)
     image = ax.imshow(
-        positive_values,
+        positive_values.T,
         origin="lower",
-        extent=[r_values.min(), r_values.max(), z_values.min(), z_values.max()],
+        extent=[z_values.min(), z_values.max(), r_values.min(), r_values.max()],
         aspect="auto",
-        cmap="inferno",
+        cmap="virdis",
         norm=LogNorm(vmin=positive_values.min(), vmax=positive_values.max()),
     )
 
-    ax.set_xlabel("r [cm]")
-    ax.set_ylabel("z [X0]")
+    ax.set_xlabel("z [X0]")
+    ax.set_ylabel("r [cm]")
     ax.set_title(f"Predicted energy deposition in calorimeter geometry at E0 = {e0:.1f} MeV")
     fig.colorbar(image, ax=ax, label="dE/dV")
     fig.tight_layout()
@@ -132,12 +132,9 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     r_values, z_values, grid = infer_grid(model, args.e0, args.r_points, args.z_points, device)
 
-    grid_path = args.output_dir / f"energy_grid_E0_{args.e0:.1f}.npy"
     heatmap_path = args.output_dir / f"energy_heatmap_E0_{args.e0:.1f}.png"
-    np.save(grid_path, grid)
     plot_heatmap(r_values, z_values, grid, args.e0, heatmap_path)
 
-    print(f"Saved grid to {grid_path}")
     print(f"Saved heatmap to {heatmap_path}")
 
 
